@@ -481,6 +481,42 @@ change(async (db) => {
     assert.migration();
   });
 
+  it('should ignore implicit privileges of the owner in global default privileges', async () => {
+    await arrange({
+      async prepareDb(db) {
+        await db.createRole('role1');
+        // Postgres also stores the owner's own privileges when changing global default privileges
+        await db.changeDefaultPrivileges({
+          owner: 'app-user',
+          grantee: 'role1',
+          grant: {
+            tables: {
+              privileges: ['SELECT'],
+            },
+          },
+        });
+      },
+      dbOptions: {
+        roles: [
+          {
+            name: 'role1',
+            defaultPrivileges: [
+              {
+                tables: {
+                  privileges: ['SELECT'],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    await act();
+
+    assert.migration();
+  });
+
   it('should handle multiple roles with different schemas', async () => {
     await arrange({
       async prepareDb(db) {
