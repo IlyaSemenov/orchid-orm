@@ -760,7 +760,8 @@ const roleSql = (params: {
   'bypassRls', rolbypassrls,
   'config', rolconfig
 )), '[]') FROM pg_roles WHERE ${
-  params.whereSql ?? `rolname != 'postgres' AND rolname !~ '^pg_'`
+  // 10 is the fixed oid of the bootstrap superuser created by `initdb`, it cannot be dropped
+  params.whereSql ?? `oid != 10 AND rolname != 'postgres' AND rolname !~ '^pg_'`
 }`;
 
 const defaultPrivilegesSql = `SELECT COALESCE(json_agg(t.*), '[]') FROM (
