@@ -554,9 +554,11 @@ const checkMigrationOrder = (
   return;
 };
 
-// Cache `change` functions of migrations. Key is a migration file name, value is array of `change` functions.
-// When migrating two or more databases, files are loaded just once due to this cache.
-export const changeCache: Record<string, MigrationChange[] | undefined> = {};
+// Cache `change` functions of migrations, because `change` registers them only on the first evaluation of a module.
+// Keyed by the loaded module, so that different migrations sets having the same keys don't share changes.
+// Loaders that don't return a module, such as file loaders, are cached by the file path.
+const changesByModule = new WeakMap<object, MigrationChange[]>();
+const changesByPath = new Map<string, MigrationChange[]>();
 
 export const getChanges = async (
   file: MigrationItemHasLoad,
@@ -564,14 +566,18 @@ export const getChanges = async (
 ): Promise<MigrationChange[]> => {
   clearChanges();
 
-  let changes = file.path ? changeCache[file.path] : undefined;
-  if (!changes) {
-    const module = (await file.load()) as
-      | {
-          default?: MaybeArray<MigrationChange>;
-        }
-      | undefined;
+  const module = (await file.load()) as
+    | {
+        default?: MaybeArray<MigrationChange>;
+      }
+    | undefined;
 
+  const isObject = typeof module === 'object' && module !== null;
+  let changes = isObject
+    ? changesByModule.get(module)
+    : file.path && changesByPath.get(file.path);
+
+  if (!changes) {
     const exported = module?.default && toArray(module.default);
 
     if (config?.forceDefaultExports && !exported) {
@@ -581,7 +587,8 @@ export const getChanges = async (
     }
 
     changes = exported || getCurrentChanges();
-    if (file.path) changeCache[file.path] = changes;
+    if (isObject) changesByModule.set(module, changes);
+    else if (file.path) changesByPath.set(file.path, changes);
   }
 
   return changes;

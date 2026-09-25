@@ -1,5 +1,4 @@
 import {
-  changeCache,
   migrate,
   MigrateConfig,
   migrateConfigDefaults,
@@ -391,14 +390,17 @@ describe('migrate-or-rollback', () => {
       return config;
     };
 
+    // a directory per test, so that tests don't share cached migration changes
+    let testDir = 0;
+
     const makeFile = (version: number, load: () => void = jest.fn()) => ({
-      path: `path/000${version}_file.ts`,
+      path: `path/${testDir}/000${version}_file.ts`,
       name: `file.ts`,
       version: `000${version}`,
       load,
     });
 
-    const files = [makeFile(1), makeFile(2), makeFile(3), makeFile(4)];
+    let files: ReturnType<typeof makeFile>[];
 
     const change = (
       fn: ChangeCallback<DefaultColumnTypes<DefaultSchemaConfig>>,
@@ -424,9 +426,8 @@ describe('migrate-or-rollback', () => {
 
     beforeEach(() => {
       jest.clearAllMocks();
-      for (const key in changeCache) {
-        delete changeCache[key];
-      }
+      testDir++;
+      files = [makeFile(1), makeFile(2), makeFile(3), makeFile(4)];
     });
 
     afterAll(async () => {
@@ -511,6 +512,36 @@ describe('migrate-or-rollback', () => {
         await act(migrate);
 
         expect(searchPath).toBe('schema');
+      });
+
+      it('should cache changes by a loaded module rather than by a migration path', async () => {
+        const applied: string[] = [];
+
+        // Like `import`, evaluates the migration file only on the first call,
+        // and returns the same module on the subsequent calls.
+        const mockImport = (fileName: string) => {
+          let module: object | undefined;
+          return () => {
+            if (!module) {
+              change(async () => {
+                applied.push(fileName);
+              });
+              module = {};
+            }
+            return module;
+          };
+        };
+
+        const importA = mockImport('a');
+        const importB = mockImport('b');
+
+        // all migrations have the same path
+        for (const load of [importA, importB, importA]) {
+          arrange({ files: [makeFile(1, load)], versions: [] });
+          await act(migrate);
+        }
+
+        expect(applied).toEqual(['a', 'b', 'a']);
       });
 
       it('should fail on gaps in sequential migrations', async () => {
