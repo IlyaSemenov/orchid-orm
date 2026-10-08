@@ -62,9 +62,14 @@ describe('create-or-drop', () => {
       const err = new Error('sslmode=require');
       query.mockRejectedValueOnce(err);
 
-      await expect(act()).rejects.toThrow(
-        new CreateOrDropError('SSL required', 'ssl-required', err),
-      );
+      const promise = act();
+
+      await expect(promise).rejects.toThrow(CreateOrDropError);
+      await expect(promise).rejects.toMatchObject({
+        message: 'SSL required',
+        status: 'ssl-required',
+        cause: err,
+      });
     });
 
     it('should return forbidden error if insufficient privilege', async () => {
@@ -73,18 +78,28 @@ describe('create-or-drop', () => {
       });
       query.mockRejectedValueOnce(err);
 
-      await expect(act()).rejects.toThrow(
-        new CreateOrDropError('Insufficient privilege', 'forbidden', err),
-      );
+      const promise = act();
+
+      await expect(promise).rejects.toThrow(CreateOrDropError);
+      await expect(promise).rejects.toMatchObject({
+        message: 'Insufficient privilege',
+        status: 'forbidden',
+        cause: err,
+      });
     });
 
     it('should return auth-failed error if auth failed', async () => {
       const err = new Error('password authentication failed');
       query.mockRejectedValueOnce(err);
 
-      await expect(act()).rejects.toThrow(
-        new CreateOrDropError('Authentication failed', 'auth-failed', err),
-      );
+      const promise = act();
+
+      await expect(promise).rejects.toThrow(CreateOrDropError);
+      await expect(promise).rejects.toMatchObject({
+        message: 'Authentication failed',
+        status: 'auth-failed',
+        cause: err,
+      });
     });
 
     it('should return unexpected error', async () => {

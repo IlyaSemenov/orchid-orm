@@ -155,6 +155,7 @@ All packages use Jest. Tests are colocated under `packages/**/src/**/*.test.ts` 
 - Database tests use `PG_URL`, `PG_GENERATE_URL`, and `ADAPTER`; `postgres-js` is the default adapter.
 - CI additionally runs coverage, lint, formatting, workspace types, build, and built-package type checks.
 - Tests must defend observable public SQL, runtime, migration, or type behavior. Avoid assertions tied only to internal implementation.
+- Do not assert an error that has a `cause` with `toThrow(new SomeError(...))`: Jest then compares all of its own properties, including source-location metadata that Bun may attach. Assert the class with `toThrow(SomeError)` and the fields with `toMatchObject`; passing the thrown instance itself to `toThrow` is fine.
 
 ## Task Completion
 
